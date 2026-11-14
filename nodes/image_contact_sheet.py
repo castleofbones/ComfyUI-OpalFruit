@@ -29,6 +29,11 @@ class ImageContactSheet:
                 "show_labels": ("BOOLEAN", {"default": True}),
                 "background_colour": ("STRING", {"default": "#808080"}),
                 "output_filename": ("STRING", {"default": "contact-sheet.png"}),
+                # Optional dependency hook: connect End Loop "outputs" here so this
+                # sheet runs after the loop. The value is never read during the
+                # image processing itself.
+                "trigger": ("ANY", {"optional": True,
+                                    "tooltip": "Optional dependency. Connect End Loop 'outputs' to run after a Start Loop / End Loop completes. The value is ignored during image processing."}),
             }
         }
 
@@ -46,7 +51,11 @@ class ImageContactSheet:
         show_labels=True,
         background_colour="#808080",
         output_filename="contact-sheet.png",
+        trigger=None,
     ):
+        # The trigger is an execution-order dependency only (e.g. End Loop
+        # "outputs"). It is intentionally ignored here; image processing is
+        # independent of the value it carries.
         directory = Path(image_directory).expanduser().resolve()
         if not directory.is_dir():
             raise ValueError(f"Image directory does not exist: {directory}")
@@ -104,9 +113,15 @@ class ImageContactSheet:
                 ((thumbnail_width - image.width) // 2, (thumbnail_width - image.height) // 2),
             )
             if show_labels:
-                ImageDraw.Draw(cell).text(
-                    (4, thumbnail_width + 4), filename_label(path.name), fill=text_colour
-                )
+                draw = ImageDraw.Draw(cell)
+                label = filename_label(path.name)
+                text_width = draw.textlength(label)
+                x = (thumbnail_width - text_width) // 2
+                # Keep the label inside its own cell: centre when it fits, otherwise
+                # left-align at the cell edge so no part crosses into a neighbour.
+                if x < 0:
+                    x = 0
+                draw.text((x, thumbnail_width + 4), label, fill=text_colour)
             sheet.paste(cell.convert("RGB"), (
                 (index % columns) * thumbnail_width, (index // columns) * cell_height
             ))
