@@ -1,0 +1,18 @@
+[project]
+name = "comfyui-opalfruit"
+version = "0.1.0"
+description = "Reusable YAML expression and image contact-sheet nodes for ComfyUI"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{name = "OpalFruit"}]
+dynamic = ["dependencies"]
+
+[project.urls]
+Repository = "https://github.com/castleofbones/ComfyUI-OpalFruit"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools]
+packages = ["comfyui_opalfruit", "comfyui_opalfruit.nodes"]
+package-dir = {comfyui_opalfruit = "."}
