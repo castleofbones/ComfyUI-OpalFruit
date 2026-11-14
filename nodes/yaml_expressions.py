@@ -15,6 +15,8 @@ def validate_expression(value):
     for field in ("expression", "prompt"):
         if field not in value or not isinstance(value[field], str):
             raise ValueError(f"Each expression requires a string '{field}' field.")
+        if not value[field].strip():
+            raise ValueError(f"Each expression's '{field}' must be nonempty and not whitespace.")
     return value
 
 
@@ -44,8 +46,11 @@ class YAMLExpressionLoader:
             raise ValueError(f"Cannot read YAML catalogue '{path}': {exc}") from exc
         if not isinstance(data, dict):
             raise ValueError("YAML catalogue must be a top-level dictionary.")
-        if type(data.get("seed")) is not int:
+        seed = data.get("seed")
+        if type(seed) is not int:
             raise ValueError("YAML catalogue requires an integer 'seed'.")
+        if seed < 0:
+            raise ValueError("YAML catalogue 'seed' must not be negative.")
         expressions = data.get("expressions")
         if not isinstance(expressions, list) or not expressions:
             raise ValueError("YAML catalogue requires a nonempty 'expressions' list.")
@@ -53,10 +58,11 @@ class YAMLExpressionLoader:
         for value in expressions:
             entry = validate_expression(value)
             name = entry["expression"]
-            if name in seen:
+            key = name.casefold()
+            if key in seen:
                 raise ValueError(f"Duplicate expression name: {name!r}.")
-            seen.add(name)
-        return expressions, data["seed"]
+            seen.add(key)
+        return expressions, seed
 
 
 class YAMLExpressionExtractor:

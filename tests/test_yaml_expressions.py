@@ -62,10 +62,45 @@ class YAMLExpressionTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.loader.load(str(self.path))
 
+    def test_negative_seed_rejected(self):
+        self.write({"seed": -1, "expressions": self.entries})
+        with self.assertRaisesRegex(ValueError, "must not be negative"):
+            self.loader.load(str(self.path))
+        self.write({"seed": 0, "expressions": self.entries})
+        _, seed = self.loader.load(str(self.path))
+        self.assertEqual(seed, 0)
+
+    def test_empty_or_whitespace_name_and_prompt_rejected(self):
+        invalid_entries = [
+            {"expression": "", "prompt": "A portrait"},
+            {"expression": "  ", "prompt": "A portrait"},
+            {"expression": "\t", "prompt": "A portrait"},
+            {"expression": "happy", "prompt": ""},
+            {"expression": "happy", "prompt": "  "},
+        ]
+        for entry in invalid_entries:
+            with self.subTest(entry=entry):
+                self.write({"seed": 42, "expressions": [entry, self.entries[1]]})
+                with self.assertRaisesRegex(ValueError, "must be nonempty"):
+                    self.loader.load(str(self.path))
+
     def test_duplicate_names(self):
         self.write({"seed": 42, "expressions": [self.entries[0], self.entries[0]]})
         with self.assertRaisesRegex(ValueError, "Duplicate expression"):
             self.loader.load(str(self.path))
+
+    def test_duplicate_names_case_insensitive(self):
+        entries = [
+            {"expression": "Happy", "prompt": "one"},
+            {"expression": "happy", "prompt": "two"},
+            {"expression": "HAPpY", "prompt": "three"},
+        ]
+        for i in range(len(entries)):
+            for j in range(i + 1, len(entries)):
+                with self.subTest(i=i, j=j):
+                    self.write({"seed": 42, "expressions": [entries[i], entries[j]]})
+                    with self.assertRaisesRegex(ValueError, "Duplicate expression"):
+                        self.loader.load(str(self.path))
 
     def test_malformed_yaml_and_missing_file(self):
         for text in ("expressions: [", "!!python/object/apply:os.system ['echo unsafe']"):
