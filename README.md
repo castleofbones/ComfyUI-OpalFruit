@@ -23,7 +23,7 @@ controller.
    ```
 4. Restart ComfyUI Desktop. Search for the display names above.
 
-Requires Python 3.10+, PyYAML 6.0.3+, and Pillow 13.0.0+. ComfyUI itself supplies
+Requires Python 3.11+, PyYAML 6.0.3+, and Pillow 13.0.0+. ComfyUI itself supplies
 the node host; no ComfyUI imports are needed for unit tests. Paths refer to the
 machine running ComfyUI. Absolute paths are recommended; `~` is supported.
 
