@@ -22,7 +22,7 @@ class ImageContactSheetTests(unittest.TestCase):
     def create(self, **kwargs):
         options = {"columns": 2, "thumbnail_width": 20, "show_labels": False}
         options.update(kwargs)
-        return Path(self.node.create(str(self.directory), **options)[0])
+        return Path(self.node.execute(str(self.directory), **options)[0])
 
     def test_sorted_grid_aspect_ratio_and_sources_unchanged(self):
         paths = [
@@ -107,7 +107,7 @@ class ImageContactSheetTests(unittest.TestCase):
             with self.subTest(options=options), self.assertRaises(ValueError):
                 self.create(**options)
         with self.assertRaisesRegex(ValueError, "does not exist"):
-            self.node.create(str(self.directory / "missing"))
+            self.node.execute(str(self.directory / "missing"))
 
     def test_output_cannot_overwrite_source_via_link(self):
         source = self.image("source.png")
@@ -123,7 +123,7 @@ class ImageContactSheetTests(unittest.TestCase):
         self.assertEqual(source.read_bytes(), original)
 
     def test_disk_changes_are_not_cached(self):
-        token = self.node.IS_CHANGED(image_directory=str(self.directory))
+        token = self.node.fingerprint_inputs(image_directory=str(self.directory))
         self.assertNotEqual(token, token)
         self.assertTrue(self.node.OUTPUT_NODE)
 
@@ -189,10 +189,12 @@ class ImageContactSheetTests(unittest.TestCase):
         return xs
 
     def test_trigger_is_optional_any_and_neutral(self):
-        # The trigger is a connectable-but-optional ANY socket. It lives in the
-        # `optional` dict (not `required`), so the node runs unconnected.
-        trigger = ImageContactSheet.INPUT_TYPES()["optional"]["trigger"]
-        self.assertEqual(trigger[0], "ANY")
+        # The trigger is a connectable-but-optional AnyType socket (io_type "*"
+        # — the match-all form used by native loop nodes). It is optional, so the
+        # node runs unconnected.
+        trigger = next(i for i in ImageContactSheet.GET_SCHEMA().inputs if i.id == "trigger")
+        self.assertEqual(trigger.io_type, "*")
+        self.assertTrue(trigger.optional)
         # The trigger value is ignored: None vs End-Loop-like values produce an
         # identical sheet.
         datas = []
@@ -201,7 +203,7 @@ class ImageContactSheetTests(unittest.TestCase):
             workdir.mkdir()
             Image.new("RGB", (20, 20), "red").save(workdir / "a.png")
             Image.new("RGBA", (30, 10), (0, 255, 0, 128)).save(workdir / "b.png")
-            output_path = Path(self.node.create(
+            output_path = Path(self.node.execute(
                 str(workdir),
                 output_filename="sheet.png",
                 trigger=trigger_value,

@@ -1,53 +1,55 @@
-"""Generate a contact sheet from images on disk, without ComfyUI dependencies."""
+"""Generate a contact sheet from images on disk, using only PIL for image processing."""
 
 from pathlib import Path
 import re
 
 from PIL import Image, ImageColor, ImageDraw, ImageOps
 
+from comfy_api.latest import io
+
 
 def filename_label(filename):
     return re.sub(r"_\d+_?$", "", Path(filename).stem)
 
 
-class ImageContactSheet:
-    CATEGORY = "OpalFruit/Image"
-    FUNCTION = "create"
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("output_path",)
-    OUTPUT_NODE = True
+class ImageContactSheet(io.ComfyNode):
+    """Generate a contact sheet of image thumbnails from a directory of files."""
+
     LABEL_HEIGHT = 24
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image_directory": ("STRING", {"default": ""}),
-                "filename_pattern": ("STRING", {"default": "*.png"}),
-                "columns": ("INT", {"default": 4, "min": 1}),
-                "thumbnail_width": ("INT", {"default": 256, "min": 1}),
-                "show_labels": ("BOOLEAN", {"default": True}),
-                "background_colour": ("STRING", {"default": "#808080"}),
-                "output_filename": ("STRING", {"default": "contact-sheet.png"}),
-            },
-            "optional": {
-                # Optional dependency hook: connect End Loop "outputs" here so this
-                # sheet runs after the loop. Sockets in the `optional` dict are
-                # not required to be wired; the value is never read during image
-                # processing.
-                "trigger": ("ANY", {
-                    "tooltip": "Optional dependency. Connect End Loop 'outputs' to run after a Start Loop / End Loop completes. The value is ignored during image processing."
-                }),
-            },
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="OpalFruitImageContactSheet",
+            display_name="Image Contact Sheet",
+            category="OpalFruit/Image",
+            description="Generate a contact sheet of image thumbnails from a directory of files.",
+            inputs=[
+                io.String.Input("image_directory", default=""),
+                io.String.Input("filename_pattern", default="*.png"),
+                io.Int.Input("columns", default=4, min=1),
+                io.Int.Input("thumbnail_width", default=256, min=1),
+                io.Boolean.Input("show_labels", default=True),
+                io.String.Input("background_colour", default="#808080"),
+                io.String.Input("output_filename", default="contact-sheet.png"),
+                io.AnyType.Input(
+                    "trigger",
+                    optional=True,
+                    tooltip="Optional dependency. Connect End Loop 'outputs' to run after a Start Loop / End Loop completes. The value is ignored during image processing.",
+                ),
+            ],
+            outputs=[io.String.Output(display_name="output_path")],
+            is_output_node=True,
+        )
 
     @classmethod
-    def IS_CHANGED(cls, **kwargs):
+    def fingerprint_inputs(cls, **kwargs):
         # Source files may change without any widget values changing.
         return float("nan")
 
-    def create(
-        self,
+    @classmethod
+    def execute(
+        cls,
         image_directory,
         filename_pattern="*.png",
         columns=4,
@@ -56,7 +58,7 @@ class ImageContactSheet:
         background_colour="#808080",
         output_filename="contact-sheet.png",
         trigger=None,
-    ):
+    ) -> io.NodeOutput:
         # The trigger is an execution-order dependency only (e.g. End Loop
         # "outputs"). It is intentionally ignored here; image processing is
         # independent of the value it carries.
@@ -106,7 +108,7 @@ class ImageContactSheet:
                     thumbnails.append(image)
             except (OSError, ValueError, Image.DecompressionBombError) as exc:
                 raise ValueError(f"Cannot read image '{path}': {exc}") from exc
-        cell_height = thumbnail_width + (self.LABEL_HEIGHT if show_labels else 0)
+        cell_height = thumbnail_width + (cls.LABEL_HEIGHT if show_labels else 0)
         rows = (len(paths) + columns - 1) // columns
         sheet = Image.new("RGB", (columns * thumbnail_width, rows * cell_height), background)
         text_colour = "black" if sum(background) > 382 else "white"
@@ -133,4 +135,4 @@ class ImageContactSheet:
             sheet.save(output, format="PNG")
         except OSError as exc:
             raise ValueError(f"Cannot save contact sheet '{output}': {exc}") from exc
-        return (str(output),)
+        return io.NodeOutput(str(output))
