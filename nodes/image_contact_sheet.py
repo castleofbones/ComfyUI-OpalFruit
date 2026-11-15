@@ -29,12 +29,16 @@ class ImageContactSheet:
                 "show_labels": ("BOOLEAN", {"default": True}),
                 "background_colour": ("STRING", {"default": "#808080"}),
                 "output_filename": ("STRING", {"default": "contact-sheet.png"}),
+            },
+            "optional": {
                 # Optional dependency hook: connect End Loop "outputs" here so this
-                # sheet runs after the loop. The value is never read during the
-                # image processing itself.
-                "trigger": ("ANY", {"optional": True,
-                                    "tooltip": "Optional dependency. Connect End Loop 'outputs' to run after a Start Loop / End Loop completes. The value is ignored during image processing."}),
-            }
+                # sheet runs after the loop. Sockets in the `optional` dict are
+                # not required to be wired; the value is never read during image
+                # processing.
+                "trigger": ("ANY", {
+                    "tooltip": "Optional dependency. Connect End Loop 'outputs' to run after a Start Loop / End Loop completes. The value is ignored during image processing."
+                }),
+            },
         }
 
     @classmethod

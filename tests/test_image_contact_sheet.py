@@ -189,10 +189,10 @@ class ImageContactSheetTests(unittest.TestCase):
         return xs
 
     def test_trigger_is_optional_any_and_neutral(self):
-        # The schema exposes an optional ANY trigger input.
-        trigger = ImageContactSheet.INPUT_TYPES()["required"]["trigger"]
+        # The trigger is a connectable-but-optional ANY socket. It lives in the
+        # `optional` dict (not `required`), so the node runs unconnected.
+        trigger = ImageContactSheet.INPUT_TYPES()["optional"]["trigger"]
         self.assertEqual(trigger[0], "ANY")
-        self.assertTrue(trigger[1]["optional"])
         # The trigger value is ignored: None vs End-Loop-like values produce an
         # identical sheet.
         datas = []
