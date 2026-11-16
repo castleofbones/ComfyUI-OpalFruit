@@ -28,7 +28,7 @@ The two YAML nodes work together as a prompt loop. The Image Contact Sheet is co
 
 4. Restart ComfyUI Desktop and search the UI for "YAML Expression Loader", "YAML Expression Extractor", or "Image Contact Sheet".
 
-**Requirements:** Python 3.11+, PyYAML 6.0.3+, Pillow 10.0.0+. ComfyUI itself is the host (it ships the node plumbing); you only install the two Python packages above. The Image Contact Sheet tests also need ComfyUI's own `comfy_api` on the Python path — see [Tests](#tests). Paths are relative to the machine running ComfyUI; absolute paths are recommended and `~` is supported.
+**Requirements:** Python 3.11+, PyYAML 6.0.3+, Pillow 10.0.0+. ComfyUI itself is the host (it ships the node plumbing); you only install the two Python packages above. The engine tests need no ComfyUI at all; the V3 node unit tests run against a small stand-in when the host is absent, while the separate integration check needs the host's own `comfy_api` — see [Tests](#tests). Paths are relative to the machine running ComfyUI; absolute paths are recommended and `~` is supported.
 
 ## Node: YAML Expression Loader
 
@@ -151,10 +151,18 @@ Run from the repository root, in an environment with `requirements.txt` installe
 python -m unittest discover -s tests -v
 ```
 
-The suite is split into two tiers:
+This is the CI command (Python 3.13). It runs with **zero skips** even when ComfyUI itself is not installed.
 
 - **Engine tests** (YAML loading/extracting, and the image-contact-sheet layout, labelling, and validation) are fully self-contained — they use only the project's declared dependencies (PyYAML, Pillow) and need **neither ComfyUI nor a GPU**.
-- **V3 node tests** (`test_image_contact_sheet.ContactSheetNodeTests` and `test_yaml_expressions.test_package_registration`) import ComfyUI's `comfy_api`, which the host ComfyUI provides but which is not a project dependency. These tests **skip automatically** when `comfy_api` is unavailable, so the whole suite passes with only `requirements.txt` installed. With a ComfyUI root on the Python path they run and exercise the schema, output-node flag, fingerprint, and trigger behaviour.
+- **V3 node tests** (`test_image_contact_sheet.ContactSheetNodeTests` and `test_yaml_expressions.test_package_registration`) exercise the wrapper's schema, output-node flag, fingerprint, trigger, and registration contracts. They import ComfyUI's `comfy_api`; because that is supplied by the host and is not a project dependency, the tests install a minimal stand-in (`tests/comfyio_stub.py`) when the host is absent, so they always run. With a ComfyUI root on the path the stand-in is bypassed and the real `comfy_api` is used instead.
+
+For validation against a **real ComfyUI installation** (the host's own `ComfyNode` and `NodeOutput`, rather than the stand-in), run the separate integration check *standalone*, from the project root, with the host on the path:
+
+```sh
+python -m unittest discover -s tests -p "comfy_integration_check*.py" -v
+```
+
+`comfy_integration_check.py` is deliberately named so it does **not** match the default `test*.py` discovery pattern, keeping it out of the CI run above; it skips (rather than fails) if the host is not importable, which is acceptable outside CI.
 
 All tests use temporary files and clean up after themselves.
 
