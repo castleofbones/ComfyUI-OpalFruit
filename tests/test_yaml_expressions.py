@@ -135,6 +135,12 @@ class YAMLExpressionTests(unittest.TestCase):
                 self.extractor.extract(value)
 
     def test_package_registration(self):
+        # Registering the package executes the V3 contact-sheet node, which
+        # imports ComfyUI's ``comfy_api``. Skip when it is absent (CI).
+        try:
+            import comfy_api  # noqa: F401
+        except ImportError:
+            self.skipTest("comfy_api not available; cannot register the V3 contact-sheet node")
         root = Path(__file__).resolve().parents[1]
         spec = importlib.util.spec_from_file_location(
             "opalfruit_test_package", root / "__init__.py",

@@ -151,7 +151,12 @@ Run from the repository root, in an environment with `requirements.txt` installe
 python -m unittest discover -s tests -v
 ```
 
-The YAML tests are fully self-contained (no ComfyUI, no GPU). The **Image Contact Sheet** tests additionally import ComfyUI's `comfy_api` (needed by the node's schema), so run them with the ComfyUI root on the Python path (for example, from your ComfyUI installation) but still **without** a GPU. All tests use temporary files and clean up after themselves.
+The suite is split into two tiers:
+
+- **Engine tests** (YAML loading/extracting, and the image-contact-sheet layout, labelling, and validation) are fully self-contained — they use only the project's declared dependencies (PyYAML, Pillow) and need **neither ComfyUI nor a GPU**.
+- **V3 node tests** (`test_image_contact_sheet.ContactSheetNodeTests` and `test_yaml_expressions.test_package_registration`) import ComfyUI's `comfy_api`, which the host ComfyUI provides but which is not a project dependency. These tests **skip automatically** when `comfy_api` is unavailable, so the whole suite passes with only `requirements.txt` installed. With a ComfyUI root on the Python path they run and exercise the schema, output-node flag, fingerprint, and trigger behaviour.
+
+All tests use temporary files and clean up after themselves.
 
 ## Licence and attribution
 
