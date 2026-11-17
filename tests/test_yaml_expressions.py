@@ -1,10 +1,34 @@
+from pathlib import Path
 import importlib.util
 import os
-from pathlib import Path
+import sys
 import tempfile
 import unittest
 
 import yaml
+
+
+def _install_comfy_api_stub():
+    """Install the ``comfy_api`` stand-in only when the real host is absent.
+
+    The package registration test below loads the root ``__init__.py``, which
+    imports the V3 contact-sheet node; that node imports ComfyUI's
+    ``comfy_api``. CI installs only the declared dependencies, so the host is
+    absent; ``tests/comfyio_stub.py`` fabricates a minimal stand-in in that case.
+    When the real host is on the path nothing is installed and the real API is
+    used.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "comfyio_stub",
+        Path(__file__).resolve().with_name("comfyio_stub.py"),
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["comfyio_stub"] = module
+    spec.loader.exec_module(module)
+    module.install_if_missing()
+
+
+_install_comfy_api_stub()
 
 from nodes.yaml_expressions import YAMLExpressionExtractor, YAMLExpressionLoader
 
@@ -135,13 +159,16 @@ class YAMLExpressionTests(unittest.TestCase):
                 self.extractor.extract(value)
 
     def test_package_registration(self):
+        # Registering the package executes the V3 contact-sheet node, which
+        # imports ComfyUI's ``comfy_api``. With the host on the path this uses
+        # the real API; under CI the test stand-in stands in for it, so this
+        # always runs (never skipped).
         root = Path(__file__).resolve().parents[1]
         spec = importlib.util.spec_from_file_location(
             "opalfruit_test_package", root / "__init__.py",
             submodule_search_locations=[str(root)],
         )
         module = importlib.util.module_from_spec(spec)
-        import sys
         sys.modules[spec.name] = module
         self.addCleanup(sys.modules.pop, spec.name)
         spec.loader.exec_module(module)

@@ -1,7 +1,7 @@
 """ComfyUI registration for the OpalFruit node collection."""
 
+from .nodes.yaml_expressions import YAMLExpressionLoader, YAMLExpressionExtractor
 from .nodes.image_contact_sheet import ImageContactSheet
-from .nodes.yaml_expressions import YAMLExpressionExtractor, YAMLExpressionLoader
 
 
 NODE_CLASS_MAPPINGS = {

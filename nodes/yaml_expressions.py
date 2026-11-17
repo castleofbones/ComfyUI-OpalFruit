@@ -21,6 +21,8 @@ def validate_expression(value):
 
 
 class YAMLExpressionLoader:
+    """Read a YAML expression catalogue and emit its prompts as a list plus a seed."""
+
     CATEGORY = "OpalFruit/YAML"
     FUNCTION = "load"
     RETURN_TYPES = (EXPRESSION_TYPE, "INT")
@@ -66,6 +68,8 @@ class YAMLExpressionLoader:
 
 
 class YAMLExpressionExtractor:
+    """Split one catalogue entry into its expression and prompt strings."""
+
     CATEGORY = "OpalFruit/YAML"
     FUNCTION = "extract"
     RETURN_TYPES = ("STRING", "STRING")

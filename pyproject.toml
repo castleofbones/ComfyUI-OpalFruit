@@ -8,7 +8,7 @@ authors = [{name = "OpalFruit"}]
 dynamic = ["dependencies"]
 
 [project.urls]
-Repository = "https://github.com/castleofbones/ComfyUI-OpalFruit"
+Repository = "https://github.com/opalfruitai/ComfyUI-OpalFruit"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

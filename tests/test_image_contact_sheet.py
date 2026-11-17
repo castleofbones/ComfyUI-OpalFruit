@@ -1,18 +1,44 @@
 from pathlib import Path
+import importlib.util
+import sys
 import tempfile
 import unittest
 
 from PIL import Image
 
-from nodes.image_contact_sheet import ImageContactSheet, filename_label
+
+def _install_comfy_api_stub():
+    """Install the ``comfy_api`` stand-in only when the real host is absent.
+
+    The V3 wrapper imports ComfyUI's ``comfy_api`` at module level, but that
+    module is supplied by the ComfyUI host, not by the project. CI installs
+    only the declared dependencies, so the host is absent; ``tests/comfyio_stub.py``
+    fabricates a minimal stand-in in that case. When the real host is on the path
+    nothing is installed and the real API is used.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "comfyio_stub",
+        Path(__file__).resolve().with_name("comfyio_stub.py"),
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["comfyio_stub"] = module
+    spec.loader.exec_module(module)
+    module.install_if_missing()
+
+
+_install_comfy_api_stub()
+
+from nodes.contact_sheet import LABEL_HEIGHT, build_contact_sheet, filename_label
+from nodes.image_contact_sheet import ImageContactSheet
 
 
 class ImageContactSheetTests(unittest.TestCase):
+    """Pure engine behaviour (Pillow only; ComfyUI not required)."""
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
-        self.node = ImageContactSheet()
 
     def image(self, name, size=(20, 20), colour="red", mode="RGB"):
         path = self.directory / name
@@ -22,7 +48,7 @@ class ImageContactSheetTests(unittest.TestCase):
     def create(self, **kwargs):
         options = {"columns": 2, "thumbnail_width": 20, "show_labels": False}
         options.update(kwargs)
-        return Path(self.node.create(str(self.directory), **options)[0])
+        return build_contact_sheet(str(self.directory), **options)
 
     def test_sorted_grid_aspect_ratio_and_sources_unchanged(self):
         paths = [
@@ -100,14 +126,13 @@ class ImageContactSheetTests(unittest.TestCase):
         for options in (
             {"columns": 0}, {"columns": True}, {"thumbnail_width": -1},
             {"thumbnail_width": 1.5}, {"background_colour": "not a colour"},
-            {"background_colour": "#ffffff00"},
-            {"output_filename": "../source.png"}, {"output_filename": "sheet.jpg"},
+            {"background_colour": "#ffffff00"}, {"output_filename": "../source.png"}, {"output_filename": "sheet.jpg"},
             {"filename_pattern": "../*.png"}, {"filename_pattern": ""},
         ):
             with self.subTest(options=options), self.assertRaises(ValueError):
                 self.create(**options)
         with self.assertRaisesRegex(ValueError, "does not exist"):
-            self.node.create(str(self.directory / "missing"))
+            build_contact_sheet(str(self.directory / "missing"))
 
     def test_output_cannot_overwrite_source_via_link(self):
         source = self.image("source.png")
@@ -122,16 +147,11 @@ class ImageContactSheetTests(unittest.TestCase):
             self.create()
         self.assertEqual(source.read_bytes(), original)
 
-    def test_disk_changes_are_not_cached(self):
-        token = self.node.IS_CHANGED(image_directory=str(self.directory))
-        self.assertNotEqual(token, token)
-        self.assertTrue(self.node.OUTPUT_NODE)
-
     def _label_ink_in_column(self, sheet, cell_w, col):
         """Absolute x-positions of non-background pixels in column `col`'s label strip."""
         bg = (128, 128, 128)
         px = sheet.load()
-        y0, y1 = cell_w, cell_w + ImageContactSheet.LABEL_HEIGHT
+        y0, y1 = cell_w, cell_w + LABEL_HEIGHT
         return [x for x in range(col * cell_w, (col + 1) * cell_w)
                 for y in range(y0, y1) if px[x, y] != bg]
 
@@ -180,7 +200,7 @@ class ImageContactSheetTests(unittest.TestCase):
         bg = (128, 128, 128)
         px = sheet.load()
         y0 = cell_w
-        y1 = cell_w + ImageContactSheet.LABEL_HEIGHT
+        y1 = cell_w + LABEL_HEIGHT
         xs = []
         for x in range(col * cell_w, (col + 1) * cell_w):
             for y in range(y0, y1):
@@ -188,11 +208,32 @@ class ImageContactSheetTests(unittest.TestCase):
                     xs.append(x)
         return xs
 
-    def test_trigger_is_optional_any_and_neutral(self):
-        # The schema exposes an optional ANY trigger input.
-        trigger = ImageContactSheet.INPUT_TYPES()["required"]["trigger"]
-        self.assertEqual(trigger[0], "ANY")
-        self.assertTrue(trigger[1]["optional"])
+
+class ContactSheetNodeTests(unittest.TestCase):
+    """V3 node schema and behaviour. Runs against the host's ``comfy_api`` when
+    present; under CI (no host) it runs against the minimal stand-in so the
+    schema, output-node, fingerprint and trigger contracts are always checked."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        self.node = ImageContactSheet()
+
+    def test_disk_changes_are_not_cached(self):
+        token = self.node.fingerprint_inputs(image_directory=str(self.directory))
+        self.assertNotEqual(token, token)
+        self.assertTrue(self.node.OUTPUT_NODE)
+
+    def test_trigger_is_optional_any_type(self):
+        # The trigger is a connectable-but-optional AnyType socket (io_type "*"
+        # — the match-all form used by native loop nodes). It is optional, so the
+        # node runs unconnected.
+        trigger = next(i for i in ImageContactSheet.GET_SCHEMA().inputs if i.id == "trigger")
+        self.assertEqual(trigger.io_type, "*")
+        self.assertTrue(trigger.optional)
+
+    def test_execute_ignores_trigger(self):
         # The trigger value is ignored: None vs End-Loop-like values produce an
         # identical sheet.
         datas = []
@@ -201,7 +242,7 @@ class ImageContactSheetTests(unittest.TestCase):
             workdir.mkdir()
             Image.new("RGB", (20, 20), "red").save(workdir / "a.png")
             Image.new("RGBA", (30, 10), (0, 255, 0, 128)).save(workdir / "b.png")
-            output_path = Path(self.node.create(
+            output_path = Path(self.node.execute(
                 str(workdir),
                 output_filename="sheet.png",
                 trigger=trigger_value,
